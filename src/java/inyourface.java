@@ -7,6 +7,9 @@ import java.net.URLDecoder;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+// For richfaces encoded payloads
+import org.richfaces.util.Util;
+
 // jdeserialize
 import org.unsynchronized.*;
 
@@ -22,6 +25,7 @@ public class inyourface extends jdeserialize {
 	private boolean isB64Encoded = false;
 	private boolean isGZipped = false;
 	private boolean rawOutput = false;
+	private boolean isRichfaces = false;
 
 	public inyourface(String filename) {
 		super(filename);
@@ -45,32 +49,47 @@ public class inyourface extends jdeserialize {
 				isUrlEncoded = true;
 			}
 
-			// 3. decode b64
-			try {
-				_tmp = Base64.decode(_tmp);
-				isB64Encoded = true;
-			} catch (Exception b64e) {
-				// do nothing: it probably means that the input stream is not b64 encoded.
-			}	
 
-			// 4. unzip
-			String out_str = "";
+			// Try to decode richfaces style encoded stuff
 			try {
-				GZIPInputStream gzis = new GZIPInputStream(new ByteArrayInputStream(_tmp.getBytes("ISO-8859-1")));
-				buf = new byte[8196];
-				nb_read = 0;
-				while ((nb_read = gzis.read(buf, 0, buf.length)) >= 0) {
-					out_str += new String(buf, 0, nb_read, "ISO-8859-1");
-				}
-				gzis.close();
-				isGZipped = true;
-			} catch(IOException ioe) {
-				// do nothing: it probably means that the input stream is not gzipped
-				out_str = _tmp;
+				System.out.println(_tmp);
+				byte[] dataArray = Util.decodeBytesData(_tmp);
+				_ret = new ByteArrayInputStream(dataArray);
+				isRichfaces = true;
+			} catch (Exception exc) {
+				System.out.println("not encoded in richfaces");
 			}
 
-			// 5. create a ByteArrayInputStream
-			_ret = new ByteArrayInputStream(out_str.getBytes("ISO-8859-1"));
+			// 3. decode b64
+			if(!isRichfaces) {
+				try {
+					_tmp = Base64.decode(_tmp);
+					isB64Encoded = true;
+				} catch (Exception b64e) {
+					System.out.println("not Base64");
+					// do nothing: it probably means that the input stream is not b64 encoded.
+				}
+
+				// 4. unzip
+				String out_str = "";
+				try {
+					GZIPInputStream gzis = new GZIPInputStream(new ByteArrayInputStream(_tmp.getBytes("ISO-8859-1")));
+					buf = new byte[8196];
+					nb_read = 0;
+					while ((nb_read = gzis.read(buf, 0, buf.length)) >= 0) {
+						out_str += new String(buf, 0, nb_read, "ISO-8859-1");
+					}
+					gzis.close();
+					isGZipped = true;
+				} catch(IOException ioe) {
+					// do nothing: it probably means that the input stream is not gzipped
+					System.out.println("not gzipped");
+					out_str = _tmp;
+				}
+				// 5. create a ByteArrayInputStream
+				_ret = new ByteArrayInputStream(out_str.getBytes("ISO-8859-1"));
+			}
+		
 		} catch(Exception e) {
 			e.printStackTrace();
 		}
@@ -93,9 +112,16 @@ public class inyourface extends jdeserialize {
 			}
 
 			// 2. encode b64
+
+
 			String _tmp = new String(_tmp_bytes, "ISO-8859-1"); 
 			if(isB64Encoded) {
 				_tmp = Base64.encode(_tmp);
+			}
+
+			// richfaces encoding
+			if(isRichfaces) {
+				_tmp = Util.encodeBytesData(_tmp_bytes);
 			}
 
 			// 3. url encode
